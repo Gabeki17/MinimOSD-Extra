@@ -168,6 +168,7 @@ Serial.flush();
 
 // Mother of all happenings, The loop()
 // As simple as possible.
+byte update_stat = 1;
 void loop() 
 {
 
@@ -188,13 +189,22 @@ void loop()
         lastMAVBeat = millis();//Preventing error from delay sensing
     }*/
     
+
     //Run "timer" every 120 miliseconds
     if(millis() > mavLinkTimer + 120){
       mavLinkTimer = millis();
       OnMavlinkTimer();
+      update_stat |= 1;
     }
+
+    if(update_stat&1) {
+      if(osd.checkVsync()) {
+        osd.update();
+        update_stat = 0;
+      }
+    }
+
     read_mavlink();
-    //mavlinkTimer.Run();
 }
 
 /* *********************************************** */

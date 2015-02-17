@@ -12,10 +12,6 @@
 #include <EEPROM.h>
 #include "OSD_Config.h"
 
-volatile int16_t x;
-volatile int font_count;
-volatile byte character_bitmap[0x40];
-
 OSD::OSD()
 {
 }
@@ -80,6 +76,7 @@ void OSD::setBrightness()
 {
 
     uint8_t blevel = EEPROM.read(OSD_BRIGHTNESS_ADDR);
+    uint8_t x;
 
     if(blevel == 0) //low brightness
         blevel = MAX7456_WHITE_level_80;
@@ -160,92 +157,81 @@ void OSD::clear()
 
 void
 OSD::setPanel(uint8_t st_col, uint8_t st_row){
-  start_col = st_col;
-  start_row = st_row;
   col = st_col;
   row = st_row;
+  bufpos = st_row*30+st_col;
 }
 
 //------------------ open panel ----------------------------------------------
 
 void
 OSD::openPanel(void){
-  unsigned int linepos;
-  byte settings, char_address_hi, char_address_lo;
- 
-  //find [start address] position
-  linepos = row*30+col;
-  
-  // divide 16 bits into hi & lo byte
-  char_address_hi = linepos >> 8;
-  char_address_lo = linepos;
-
-  //Auto increment turn writing fast (less SPI commands).
-  //No need to set next char address. Just send them
-  settings = MAX7456_INCREMENT_auto; //To Enable DMM Auto Increment
-  digitalWrite(MAX7456_SELECT,LOW);
-  Spi.transfer(MAX7456_DMM_reg); //dmm
-  Spi.transfer(settings);
-
-  Spi.transfer(MAX7456_DMAH_reg); // set start address high
-  Spi.transfer(char_address_hi);
-
-  Spi.transfer(MAX7456_DMAL_reg); // set start address low
-  Spi.transfer(char_address_lo);
-  //Serial.printf("setPos -> %d %d\n", col, row);
 }
 
 //------------------ close panel ---------------------------------------------
 
 void
 OSD::closePanel(void){  
-  Spi.transfer(MAX7456_DMDI_reg);
-  Spi.transfer(MAX7456_END_string); //This is needed "trick" to finish auto increment
-  digitalWrite(MAX7456_SELECT,HIGH);
-  //Serial.println("close");
-  row++; //only after finish the auto increment the new row will really act as desired
 }
 
 //------------------ write single char ---------------------------------------------
 
 void
 OSD::openSingle(uint8_t x, uint8_t y){
-  unsigned int linepos;
-  byte char_address_hi, char_address_lo;
- 
-  //find [start address] position
-  linepos = y*30+x;
-  
-  // divide 16 bits into hi & lo byte
-  char_address_hi = linepos >> 8;
-  char_address_lo = linepos;
-  
-  digitalWrite(MAX7456_SELECT,LOW);
-  
-  Spi.transfer(MAX7456_DMAH_reg); // set start address high
-  Spi.transfer(char_address_hi);
-
-  Spi.transfer(MAX7456_DMAL_reg); // set start address low
-  Spi.transfer(char_address_lo);
-  //Serial.printf("setPos -> %d %d\n", col, row);
+  bufpos = y*30+x;
 }
 
 //------------------ write ---------------------------------------------------
 
 size_t
 OSD::write(uint8_t c){
+  
   if(c == '|'){
-    closePanel(); //It does all needed to finish auto increment and change current row
-    openPanel(); //It does all needed to re-enable auto increment
-  }
-  else{
-    Spi.transfer(MAX7456_DMDI_reg);
-    Spi.transfer(c);
-  }
+   row++;
+   bufpos = row*30+col;
+  } else
+   osdbuf[bufpos++] = c;
   return 1;
 }
 
-//---------------------------------
+void
+OSD::update() {
+ uint8_t *b;
+ uint8_t *end_b;
+ b = osdbuf;
+ end_b = b+sizeof(osdbuf);
+
+ PORTD &= ~_BV(PD6);
+ Spi.transfer(MAX7456_DMAH_reg);
+ Spi.transfer(0);
+ Spi.transfer(MAX7456_DMAL_reg);
+ Spi.transfer(0);
+ Spi.transfer(MAX7456_DMM_reg);
+ Spi.transfer(1);
+ PORTD |= _BV(PD6);
+
+ for(; b < end_b; b++) {
+  PORTD &= ~_BV(PD6);
+  SPDR = *b;
+  while (!(SPSR & (1<<SPIF))) ;
+  PORTD |= _BV(PD6);
+ }
+ PORTD &= ~_BV(PD6);
+ Spi.transfer(MAX7456_END_string);
+ PORTD |= _BV(PD6);
+ memset(osdbuf, ' ', sizeof(osdbuf));
+}
+
+uint8_t OSD::checkVsync() {
+ uint8_t s;
+ PORTD &= ~_BV(PD6);
+ Spi.transfer(MAX7456_STAT_reg_read);
+ s = Spi.transfer(0xff);
+ PORTD |= _BV(PD6);
+ return (s & 0x10) == 0;
+
+}
+
 
 void
 OSD::control(uint8_t ctrl){
@@ -297,10 +283,16 @@ OSD::write_NVM(int font_count, uint8_t *character_bitmap)
   Spi.transfer(WRITE_nvr);
   
   // wait until bit 5 in the status register returns to 0 (12ms)
-  while ((Spi.transfer(MAX7456_STAT_reg_read) & STATUS_reg_nvr_busy) != 0x00);
+  while (1) {
+   Spi.transfer(MAX7456_STAT_reg_read);
+   if(!(Spi.transfer(0xff) & STATUS_reg_nvr_busy)) break;
+  } 
 
+#if 1
   Spi.transfer(MAX7456_VM0_reg); // turn on screen next vertical
   Spi.transfer(MAX7456_ENABLE_display_vert);
+#endif
+
   digitalWrite(MAX7456_SELECT,HIGH);  
 }
 
