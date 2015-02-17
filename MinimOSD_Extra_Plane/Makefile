@@ -8,7 +8,7 @@
 BOARD_TAG    = atmega328
 
 ARDUINO_HEADER = dummy_header.h
-USER_LIB_PATH =  ../librariesOK
+USER_LIB_PATH =  ../libraries
 include /usr/share/arduino/Arduino.mk
 CPPFLAGS += -Wno-deprecated-declarations
 
