@@ -1,3 +1,5 @@
+#include "OSD_Config_Func.h"
+
 /******* STARTUP PANEL *******/
 
 void startPanels(){
