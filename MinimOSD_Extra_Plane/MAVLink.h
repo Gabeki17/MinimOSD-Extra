@@ -5,9 +5,6 @@
 static bool mavlink_active;
 static uint8_t crlf_count = 0;
 
-static int packet_drops = 0;
-static int parse_error = 0;
-
 void request_mavlink_rates()
 {
     const int  maxStreams = 6;
@@ -41,9 +38,9 @@ void read_mavlink(){
             } else {
                 crlf_count = 0;
             }
-//            if (crlf_count == 3) {
-//                uploadFont();
-//            }
+            if (crlf_count == 3) {
+                uploadFont();
+            }
         }
 
         //trying to grab msg  
@@ -167,8 +164,5 @@ void read_mavlink(){
         delayMicroseconds(138);
         //next one
     }
-    // Update global packet drops counter
-    packet_drops += status.packet_rx_drop_count;
-    parse_error += status.parse_error;
 
 }

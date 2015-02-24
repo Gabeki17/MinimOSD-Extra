@@ -91,6 +91,8 @@ class OSD: public BetterStream
     void openSingle(uint8_t x, uint8_t y);
     int getMode(void);
     int getCenter(void);
+    void update(void);
+    uint8_t checkVsync(void);
     virtual int     available(void);
     virtual int     read(void);
     virtual int     peek(void);
@@ -99,7 +101,9 @@ class OSD: public BetterStream
     void write_NVM(int font_count, uint8_t *character_bitmap);
     using BetterStream::write;
   private:
-    uint8_t start_col, start_row, col, row, video_mode, video_center;
+    uint8_t col, row, video_mode, video_center;
+    uint8_t osdbuf[16*30];
+    uint16_t bufpos;
 };
 
 #endif

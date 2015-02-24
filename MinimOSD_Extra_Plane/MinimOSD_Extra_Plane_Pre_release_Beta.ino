@@ -39,12 +39,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>
 /* **************** MAIN PROGRAM - MODULES ******************** */
 /* ************************************************************ */
 
-#undef PROGMEM 
-#define PROGMEM __attribute__(( section(".progmem.data") )) 
-
-#undef PSTR 
-#define PSTR(s) (__extension__({static prog_char __c[] PROGMEM = (s); &__c[0];})) 
-
 #define isPAL 1
 
 /* **********************************************/
@@ -80,6 +74,8 @@ along with this program. If not, see <http://www.gnu.org/licenses/>
 #include "ArduCam_Max7456.h"
 #include "OSD_Vars.h"
 #include "OSD_Func.h"
+
+#include "prototypes.h"
 
 /* *************************************************/
 /* ***************** DEFINITIONS *******************/
@@ -172,6 +168,7 @@ Serial.flush();
 
 // Mother of all happenings, The loop()
 // As simple as possible.
+byte update_stat = 1;
 void loop() 
 {
 
@@ -192,13 +189,22 @@ void loop()
         lastMAVBeat = millis();//Preventing error from delay sensing
     }*/
     
+
     //Run "timer" every 120 miliseconds
     if(millis() > mavLinkTimer + 120){
       mavLinkTimer = millis();
       OnMavlinkTimer();
+      update_stat |= 1;
     }
+
+    if(update_stat&1) {
+      if(osd.checkVsync()) {
+        osd.update();
+        update_stat = 0;
+      }
+    }
+
     read_mavlink();
-    //mavlinkTimer.Run();
 }
 
 /* *********************************************** */
@@ -226,3 +232,7 @@ void unplugSlaves(){
 #endif
     digitalWrite(MAX7456_SELECT,  HIGH); // unplug OSD
 }
+
+#include "OSD_Panels.h"
+#include "MAVLink.h"
+#include "Font.h"
